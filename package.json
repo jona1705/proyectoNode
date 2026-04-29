@@ -1,0 +1,24 @@
+{
+  "name": "node02",
+  "version": "1.0.0",
+  "description": "Proyecto Web de la FES Acatlán",
+  "keywords": [
+    "web",
+    "desarrollo",
+    "web",
+    "fes",
+    "acatlan",
+    "unam"
+  ],
+  "license": "ISC",
+  "author": "Jonathan Córdoba",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
