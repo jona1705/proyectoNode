@@ -1,0 +1,26 @@
+### Acceder a la ruta raíz o página principal
+GET http://localhost:3000/
+
+### Recuperar información de los cursos
+GET http://localhost:3000/cursos
+
+### Recuperar cursos de programación
+GET http://localhost:3000/cursos/programacion 
+
+### Recuperar cursos de matemáticas
+GET http://localhost:3000/cursos/matematicas 
+
+### Recuperar cursos de bases de datos
+GET http://localhost:3000/cursos/base_de_datos 
+
+### Crear un nuevo curso de matemáticas
+POST http://localhost:3000/cursos/matematicas
+Content-Type: application/json
+
+{
+  "id": 3,
+  "titulo": "Probabilidad y Estadística",
+  "tema": "probabilidad",
+  "vistas": 8900,
+  "nivel": "basico"
+}
