@@ -28,7 +28,7 @@ const puerto = process.env.PORT ?? 3000
 
 server.listen(puerto, () => {
   console.log(`Servidor escuchando en http://localhost:${puerto}`)
-}) 
+})
 
 // métodos de solicitud
 
@@ -92,5 +92,102 @@ const manejarSolicitudPOST = (req, res) => {
 
       return res.end(JSON.stringify(data))
     })
+  }
+}
+
+// PUT: Reemplaza completamente un curso
+const manejarSolicitudPUT = (req, res) => {
+  const path = req.url
+  let id
+
+  // URL: .../cursos/programacion/1
+
+  if (path.startsWith('/cursos/programacion/')) {
+    // Extraemos id de la ruta
+    id = parseInt(path.split('/')[3])
+  }
+
+  let body = ''
+
+  req.on('data', chunk => {
+    body += chunk.toString()
+  })
+
+  req.on('end', () => {
+    // convertimos el json a un objeto de javascript
+    const data = JSON.parse(body)
+    // Accedemos al curso por medio de su indice
+    const index = cursos.programacion.findIndex(curso => curso.id === id)
+
+    if (index === -1) {
+      res.statusCode = 404
+      return res.end(JSON.stringify({ mensaje: 'Curso no encontrado' }))
+    }
+
+    // reemplaza completamente
+    cursos.programacion[index] = {
+      id,
+      ...data
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+    return res.end(JSON.stringify(cursos.programacion[index]))
+  })
+}
+
+// PATCH: Solo modifica algunos campos (actualizacion parcial)
+const manejarSolicitudPATCH = (req, res) => {
+  const path = req.url
+
+  if (path.startsWith('/cursos/base_de_datos/')) {
+    const id = parseInt(path.split('/')[3])
+
+    let body = ''
+
+    req.on('data', chunk => {
+      body += chunk.toString()
+    })
+
+    req.on('end', () => {
+      const data = JSON.parse(body)
+
+      const curso = cursos.bases_de_datos.find(curso => curso.id === id)
+
+      if (!curso) {
+        res.statusCode = 404
+        return res.end(JSON.stringify({ mensaje: 'Curso no encontrado' }))
+      }
+
+      // solo actualiza lo que venga
+      Object.assign(curso, data)
+
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+      return res.end(JSON.stringify(curso))
+    })
+  }
+}
+
+// DELETE: Elimina un recurso
+// Esta función borra un curso por id
+const manejarSolicitudDELETE = (req, res) => {
+  const path = req.url
+
+  if (path.startsWith('/cursos/matematicas/')) {
+    const id = parseInt(path.split('/')[3])
+
+    const index = cursos.matematicas.findIndex(curso => curso.id === id)
+
+    if (index === -1) {
+      res.statusCode = 404
+      return res.end(JSON.stringify({ mensaje: 'Curso no encontrado' }))
+    }
+
+    const eliminado = cursos.matematicas.splice(index, 1)
+
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+    return res.end(JSON.stringify({
+      mensaje: 'Curso eliminado',
+      curso: eliminado[0]
+    }))
   }
 }

@@ -19,8 +19,42 @@ Content-Type: application/json
 
 {
   "id": 3,
-  "titulo": "Probabilidad y Estadística",
-  "tema": "probabilidad",
-  "vistas": 8900,
-  "nivel": "basico"
+  "titulo": "Aprende Ecuaciones Diferenciales",
+  "tema": "ecuaciones",
+  "vistas": 18700,
+  "nivel": "intermedio"
+}
+
+### Modificar todo un curso de programacion
+PUT http://localhost:3000/cursos/programacion/1
+Content-Type: application/json
+
+{
+  "titulo": "Aprende Ensamblador",
+  "lenguaje": "ensamblador",
+  "vistas": 9999,
+  "nivel": "avanzado"
+}
+
+### Modificamos la propiedad vistas de el curso 1 de BD
+PATCH http://localhost:3000/cursos/base_de_datos/1
+Content-Type: application/json
+
+{
+ "vistas": 20000
+}
+
+### Borramos un curso de matematicas
+DELETE http://localhost:3000/cursos/matematicas/1
+
+### Recuperar curso de matematicas eliminado
+POST http://localhost:3000/cursos/matematicas
+Content-Type: application/json
+
+{
+ "id": 1,
+ "titulo": "Aprende Cálculo",
+ "tema": "cálculo",
+ "vistas": 12427,
+ "nivel": "básico"
 }
