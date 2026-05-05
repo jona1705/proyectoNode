@@ -48,7 +48,7 @@ const manejarSolicitudGET = (req, res) => {
     return res.end(JSON.stringify(cursos.programacion))
   } else if (path === '/cursos/matematicas') {
     return res.end(JSON.stringify(cursos.matematicas))
-  } else if (path === '/cursos/base_de_datos') {
+  } else if (path === '/cursos/bases_de_datos') {
     return res.end(JSON.stringify(cursos.bases_de_datos))
   }
 
@@ -184,7 +184,10 @@ const manejarSolicitudDELETE = (req, res) => {
 
     const eliminado = cursos.matematicas.splice(index, 1)
 
+    // [a, b, c, d, e] --> splice(2, 2) --> [a, b, e]
+
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+
     return res.end(JSON.stringify({
       mensaje: 'Curso eliminado',
       curso: eliminado[0]

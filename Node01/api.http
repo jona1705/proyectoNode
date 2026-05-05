@@ -45,16 +45,16 @@ Content-Type: application/json
 }
 
 ### Borramos un curso de matematicas
-DELETE http://localhost:3000/cursos/matematicas/1
+DELETE http://localhost:3000/cursos/matematicas/3
 
 ### Recuperar curso de matematicas eliminado
 POST http://localhost:3000/cursos/matematicas
 Content-Type: application/json
 
 {
- "id": 1,
- "titulo": "Aprende Cálculo",
- "tema": "cálculo",
+ "id": 3,
+ "titulo": "Aprende Ecuaciones diferenciales",
+ "tema": "ecuaciones diferenciales",
  "vistas": 12427,
- "nivel": "básico"
+ "nivel": "medio"
 }

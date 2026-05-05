@@ -8,16 +8,18 @@ const server = createServer((req, res) => {
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
-  if (path === '/') {
+  // http://localhost:3000/cursos/programacion
+
+  if (path === '/') { // http://localhost:3000/
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.end('Bienvenido al curso práctico de Desarrollo Web 2651')
-  } else if (path === '/cursos') {
+  } else if (path === '/cursos') { // http://localhost:3000/cursos
     return res.end(JSON.stringify(cursos))
-  } else if (path === '/cursos/programacion') {
+  } else if (path === '/cursos/programacion') { // http://localhost:3000/cursos/programacion
     return res.end(JSON.stringify(cursos.programacion))
-  } else if (path === '/cursos/matematicas') {
+  } else if (path === '/cursos/matematicas') { // http://localhost:3000/cursos/matematicas
     return res.end(JSON.stringify(cursos.matematicas))
-  } else if (path === '/cursos/base_de_datos') {
+  } else if (path === '/cursos/base_de_datos') { // http://localhost:3000/cursos/base_de_datos
     return res.end(JSON.stringify(cursos.bases_de_datos))
   }
 

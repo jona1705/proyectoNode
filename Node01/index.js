@@ -5,10 +5,10 @@ const puerto = process.env.PORT ?? 3000
 const server = createServer((req, res) => {
   // console.log('solicitud recibida .. saludos')
   // console.log(req);
-  
+
   // res.setHeader('Content-Type', 'text/plain');
   // res.end('Hola Mundo') 
-  
+
   /* console.log(req.url)
   console.log(req.method)
   console.log(req.headers) */
