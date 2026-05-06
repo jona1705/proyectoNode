@@ -11,7 +11,7 @@ GET http://localhost:3000/cursos/programacion
 GET http://localhost:3000/cursos/matematicas 
 
 ### Recuperar cursos de bases de datos
-GET http://localhost:3000/cursos/base_de_datos 
+GET http://localhost:3000/cursos/bases_de_datos 
 
 ### Crear un nuevo curso de matemáticas
 POST http://localhost:3000/cursos/matematicas
@@ -25,7 +25,7 @@ Content-Type: application/json
   "nivel": "intermedio"
 }
 
-### Modificar todo un curso de programacion
+### Modificar un curso de programacion
 PUT http://localhost:3000/cursos/programacion/1
 Content-Type: application/json
 
