@@ -18,11 +18,32 @@ POST http://localhost:3000/cursos/matematicas
 Content-Type: application/json
 
 {
-  "id": 3,
   "titulo": "Aprende Ecuaciones Diferenciales",
   "tema": "ecuaciones",
   "vistas": 18700,
+  "nivel": "avanzado"
+}
+
+### Crear un nuevo curso de programacion
+POST http://localhost:3000/cursos/programacion
+Content-Type: application/json
+
+{
+  "titulo": "Aprende Django",
+  "lenguaje": "python",
+  "vistas": 12599,
   "nivel": "intermedio"
+}
+
+### Crear un nuevo curso de bases de datos
+POST http://localhost:3000/cursos/bases_de_datos
+Content-Type: application/json
+
+{
+  "titulo": "Aprende PostgreSQL",
+  "tecnologia": "SQL",
+  "vistas": 18700,
+  "nivel": "avanzado"
 }
 
 ### Modificar un curso de programacion
@@ -36,25 +57,59 @@ Content-Type: application/json
   "nivel": "avanzado"
 }
 
+### Modificar un curso de matematicas
+PUT http://localhost:3000/cursos/matematicas/2
+Content-Type: application/json
+
+{
+  "titulo": "Geometria Analítica",
+  "tema": "geometría",
+  "vistas": 17200,
+  "nivel": "intermedio"
+}
+
+### Modificar un curso de bases de datos
+PUT http://localhost:3000/cursos/bases_de_datos/1
+Content-Type: application/json
+
+{
+  "titulo": "MongoDB",
+  "tecnologia": "nosql",
+  "vistas": 8888,
+  "nivel": "avanzado"
+}
+
 ### Modificamos la propiedad vistas de el curso 1 de BD
-PATCH http://localhost:3000/cursos/base_de_datos/1
+PATCH http://localhost:3000/cursos/bases_de_datos/1
 Content-Type: application/json
 
 {
  "vistas": 20000
 }
 
-### Borramos un curso de matematicas
-DELETE http://localhost:3000/cursos/matematicas/3
-
-### Recuperar curso de matematicas eliminado
-POST http://localhost:3000/cursos/matematicas
+### Modificamos la propiedad vistas de el curso 1 de programacion
+PATCH http://localhost:3000/cursos/programacion/1
 Content-Type: application/json
 
 {
- "id": 3,
- "titulo": "Aprende Ecuaciones diferenciales",
- "tema": "ecuaciones diferenciales",
- "vistas": 12427,
- "nivel": "basico"
+ "vistas": 30000
 }
+
+### Modificamos la propiedad vistas de el curso 1 de matematicas
+PATCH http://localhost:3000/cursos/matematicas/1
+Content-Type: application/json
+
+{
+ "vistas": 15467
+}
+
+### Borramos un curso de matematicas
+DELETE http://localhost:3000/cursos/matematicas/3
+
+### Borramos un curso de programacion
+DELETE http://localhost:3000/cursos/programacion/4
+
+### Borramos un curso de programacion
+DELETE http://localhost:3000/cursos/bases_de_datos/4
+
+
