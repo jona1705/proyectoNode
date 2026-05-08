@@ -6,6 +6,10 @@ const server = createServer((req, res) => {
 
   const path = req.url
 
+  /* URL completa de la petición, excluyendo el protocolo, dominio y puerto */
+  /* Ejemplo: req.url = "/usuarios/123?nombre=juan&activo=true#seccion" */
+  console.log(path) 
+
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   // http://localhost:3000/cursos/programacion

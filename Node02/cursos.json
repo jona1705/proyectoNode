@@ -1,0 +1,57 @@
+{
+  "programacion": [
+    {
+      "id": 1,
+      "titulo": "Aprende Python",
+      "lenguaje": "python",
+      "vistas": 15000,
+      "nivel": "basico"
+    },
+    {
+      "id": 2,
+      "titulo": "Python intermedio",
+      "lenguaje": "python",
+      "vistas": 13553,
+      "nivel": "intermedio"
+    },
+    {
+      "id": 3,
+      "titulo": "Aprende JavaScript",
+      "lenguaje": "javascript",
+      "vistas": 102223,
+      "nivel": "basico"
+    }
+  ],
+  "matematicas": [
+    {
+      "id": 1,
+      "titulo": "Aprende Cálculo",
+      "tema": "cálculo",
+      "vistas": 12427,
+      "nivel": "básico"
+    },
+    {
+      "id": 2,
+      "titulo": "Aprende Álgebra",
+      "tema": "álgebra",
+      "vistas": 15722,
+      "nivel": "intermedio"
+    }
+  ],
+  "bases_de_datos": [
+    {
+      "id": 1,
+      "titulo": "Introducción a SQL",
+      "tecnologia": "SQL",
+      "vistas": 18200,
+      "nivel": "básico"
+    },
+    {
+      "id": 2,
+      "titulo": "Modelado de Bases de Datos",
+      "tecnologia": "modelado",
+      "vistas": 9800,
+      "nivel": "intermedio"
+    }
+  ]
+}
