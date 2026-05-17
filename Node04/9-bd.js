@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import express from 'express'
 import cursosRoutes from './routes/cursos.routes.js'
 import viewsRoutes from './routes/cursos.views.routes.js'

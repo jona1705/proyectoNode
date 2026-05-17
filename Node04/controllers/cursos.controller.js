@@ -1,5 +1,7 @@
 //import { CursosModel } from '../models/local-file-system/cursos.model.js'
-import { CursosModel } from '../models/mysql/cursos.model.js'
+//import { CursosModel } from '../models/mysql/cursos.model.js'
+import { CursosModel } from '../models/index.js'
+
 
 export class CursosController {
 
