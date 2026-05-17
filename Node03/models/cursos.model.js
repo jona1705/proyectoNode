@@ -96,8 +96,8 @@ export class CursosModel {
 
     return cursos.bases_de_datos[index]
   }
-  
-   // Actualización parcial de un curso de programacion
+
+  // Actualización parcial de un curso de programacion
   static patchProgramacion({ id, input }) {
     const curso = cursos.programacion.find(c => c.id === id)
     if (!curso) return false
@@ -105,7 +105,7 @@ export class CursosModel {
     return curso
   }
 
-   // Actualización parcial de un curso de matematicas
+  // Actualización parcial de un curso de matematicas
   static patchMatematicas({ id, input }) {
     const curso = cursos.matematicas.find(c => c.id === id)
     if (!curso) return false
@@ -113,7 +113,7 @@ export class CursosModel {
     return curso
   }
 
-   // Actualización parcial de un curso de bases de datos
+  // Actualización parcial de un curso de bases de datos
   static patchBD({ id, input }) {
     const curso = cursos.bases_de_datos.find(c => c.id === id)
     if (!curso) return false

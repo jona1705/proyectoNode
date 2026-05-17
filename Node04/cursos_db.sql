@@ -43,6 +43,7 @@ INSERT INTO bases_de_datos (titulo, tecnologia, vistas, nivel, timestamp)
 VALUES ('Introducción a SQL', 'SQL', 18200, 'basico', NOW()),
 ('Modelado de Bases de Datos', 'modelado', 9800, 'intermedio', NOW());
 
-SELECT * FROM programacion;
-SELECT * FROM matematicas;
-SELECT * FROM bases_de_datos;
+-- Para probar que se insertaron correctamente los valores
+-- SELECT * FROM programacion;
+-- SELECT * FROM matematicas;
+-- SELECT * FROM bases_de_datos;

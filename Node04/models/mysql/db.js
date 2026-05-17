@@ -7,7 +7,7 @@ export const pool = await mysql.createPool({
   database: 'cursosdb'
 })
 
-// Probar conexión al iniciar
+// Probar conexión al iniciar (descomentar el código de abajo)
 /*try {
   const connection = await pool.getConnection()
   console.log('✅ Conexión a MySQL exitosa')

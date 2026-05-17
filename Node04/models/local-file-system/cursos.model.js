@@ -3,12 +3,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-console.log(__dirname)
-
 const DATA_PATH = path.join(__dirname, '../../data/cursos.json')
-
-console.log(DATA_PATH)
 
 // Helpers privados de lectura/escritura
 const leerCursos = async () => {

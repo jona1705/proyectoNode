@@ -27,15 +27,23 @@
       "id": 1,
       "titulo": "Aprende Cálculo",
       "tema": "cálculo",
-      "vistas": 12427,
+      "vistas": 15467,
       "nivel": "básico"
     },
     {
       "id": 2,
-      "titulo": "Aprende Álgebra",
-      "tema": "álgebra",
-      "vistas": 15722,
+      "titulo": "Geometria Analítica",
+      "tema": "geometría",
+      "vistas": 17200,
       "nivel": "intermedio"
+    },
+    {
+      "id": 3,
+      "titulo": "Aprende Ecuaciones Diferenciales",
+      "tema": "ecuaciones",
+      "vistas": 18700,
+      "nivel": "avanzado",
+      "timestamp": 1778911355839
     }
   ],
   "bases_de_datos": [

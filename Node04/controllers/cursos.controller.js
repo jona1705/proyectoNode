@@ -1,5 +1,5 @@
-import { CursosModel } from '../models/local-file-system/cursos.model.js'
-//import { CursosModel } from '../models/mysql/cursos.model.js'
+//import { CursosModel } from '../models/local-file-system/cursos.model.js'
+import { CursosModel } from '../models/mysql/cursos.model.js'
 
 export class CursosController {
 
@@ -57,7 +57,7 @@ export class CursosController {
     res.json(cursoActualizado)
   }
 
-  static updateMatematicas = async(req, res) => {
+  static updateMatematicas = async (req, res) => {
     const { id } = req.params
 
     const cursoActualizado = await CursosModel.updateMatematicas({
@@ -74,7 +74,7 @@ export class CursosController {
     res.json(cursoActualizado)
   }
 
-  static updateBD = async(req, res) => {
+  static updateBD = async (req, res) => {
     const { id } = req.params
 
     const cursoActualizado = await CursosModel.updateBD({
@@ -91,7 +91,7 @@ export class CursosController {
     res.json(cursoActualizado)
   }
 
-  static patchProgramacion = async(req, res) => {
+  static patchProgramacion = async (req, res) => {
     const { id } = req.params
 
     const cursoActualizado = await CursosModel.patchProgramacion({
@@ -108,7 +108,7 @@ export class CursosController {
     res.json(cursoActualizado)
   }
 
-  static patchMatematicas = async(req, res) => {
+  static patchMatematicas = async (req, res) => {
     const { id } = req.params
 
     const cursoActualizado = await CursosModel.patchMatematicas({
@@ -125,7 +125,7 @@ export class CursosController {
     res.json(cursoActualizado)
   }
 
-  static patchBD = async(req, res) => {
+  static patchBD = async (req, res) => {
     const { id } = req.params
 
     const cursoActualizado = await CursosModel.patchBD({
@@ -142,7 +142,7 @@ export class CursosController {
     res.json(cursoActualizado)
   }
 
-  static deleteProgramacion = async (req, res) =>{
+  static deleteProgramacion = async (req, res) => {
     const { id } = req.params
     const eliminado = await CursosModel.deleteProgramacion({ id })
 
@@ -158,7 +158,7 @@ export class CursosController {
     })
   }
 
-  static deleteMatematicas = async(req, res) =>{
+  static deleteMatematicas = async (req, res) => {
     const { id } = req.params
     const eliminado = await CursosModel.deleteMatematicas({ id })
 
@@ -174,7 +174,7 @@ export class CursosController {
     })
   }
 
-  static deleteBD = async(req, res) => {
+  static deleteBD = async (req, res) => {
     const { id } = req.params
     const eliminado = await CursosModel.deleteBD({ id })
 

@@ -1,15 +1,20 @@
 import express from 'express'
 import cursosRoutes from './routes/cursos.routes.js'
+import viewsRoutes from './routes/cursos.views.routes.js'
 
 const app = express()
 
+app.set('view engine', 'ejs')
+app.set('views', './views')
+
 app.use(express.json())
 
-app.get('/', (req, res) => {
+/*app.get('/', (req, res) => {
   res.type('text/plain')
   res.send('Bienvenido al curso práctico de Desarrollo Web 2651')
-})
+})*/
 
+app.use('/', viewsRoutes)
 app.use('/cursos', cursosRoutes)
 
 app.use((req, res) => {
