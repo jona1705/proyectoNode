@@ -1,0 +1,2697 @@
+=============== 10-autentificacion.js =========================
+
+import 'dotenv/config'
+import express from 'express'
+import cursosRoutes from './routes/cursos.routes.js'
+import viewsRoutes from './routes/cursos.views.routes.js'
+
+const app = express()
+
+app.set('view engine', 'ejs')
+app.set('views', './views')
+
+app.use(express.json())
+
+/*app.get('/', (req, res) => {
+  res.type('text/plain')
+  res.send('Bienvenido al curso práctico de Desarrollo Web 2651')
+})*/
+
+app.use('/', viewsRoutes)
+app.use('/cursos', cursosRoutes)
+
+app.use((req, res) => {
+  res.status(404).send('El recurso solicitado no existe ...')
+})
+
+const puerto = process.env.PORT ?? 3000
+
+app.listen(puerto, () => {
+  console.log(`Servidor escuchando en http://localhost:${puerto}`)
+})
+
+=============== schemas/cursos.schema.js =========================
+
+import { z } from 'zod'
+
+export const cursoMatematicasSchema = z.object({
+  titulo: z.string({
+    error: (issue) => issue.input === undefined
+      ? 'El titulo es obligatorio'
+      : 'El titulo debe ser un texto'
+  }).min(5, { message: 'El titulo debe tener al menos 5 caracteres' }),
+
+  tema: z.string({
+    error: (issue) => issue.input === undefined
+      ? 'El tema es obligatorio'
+      : 'El tema debe ser un texto'
+  }).min(3, { message: 'El tema debe tener al menos 3 caracteres' }),
+
+  vistas: z.number({
+    error: (issue) => issue.input === undefined
+      ? 'El campo vistas es obligatorio'
+      : 'El campo vistas debe ser un número'
+  }).int({ error: 'El campo vistas debe ser entero' })
+    .nonnegative({ message: 'El campo vistas no puede ser negativo' }),
+
+  nivel: z.enum(['basico', 'intermedio', 'avanzado'], {
+    error: (issue) => issue.input === undefined
+      ? 'El nivel es obligatorio'
+      : 'El nivel debe ser: básico, intermedio, avanzado'
+  })
+})
+
+export const cursoMatematicasPatchSchema = cursoMatematicasSchema.partial()
+
+export const cursoProgramacionSchema = z.object({
+  titulo: z.string({
+    error: (issue) => issue.input === undefined
+      ? 'El titulo es obligatorio'
+      : 'El titulo debe ser un texto'
+  }).min(5, { message: 'El titulo debe tener al menos 5 caracteres' }),
+
+  lenguaje: z.string({
+    error: (issue) => issue.input === undefined
+      ? 'El lenguaje es obligatorio'
+      : 'El lenguaje debe ser un texto'
+  }).min(3, { message: 'El titulo debe tener al menos 3 caracteres' }),
+
+  vistas: z.number({
+    error: (issue) => issue.input === undefined
+      ? 'El campo vistas es obligatorio'
+      : 'El campo vistas debe ser un número'
+  }).int({ message: 'El campo vistas debe ser entero' })
+    .nonnegative({ message: 'El campo vistas no puede ser negativo' }),
+
+  nivel: z.enum(['basico', 'intermedio', 'avanzado'], {
+    error: (issue) => issue.input === undefined
+      ? 'El nivel es obligatorio'
+      : 'El nivel debe ser: básico, intermedio, avanzado'
+  })
+})
+
+export const cursoProgramacionPatchSchema = cursoProgramacionSchema.partial()
+
+export const cursoBDSchema = z.object({
+  titulo: z.string({
+    error: (issue) => issue.input === undefined
+      ? 'El titulo es obligatorio'
+      : 'El titulo debe ser un texto'
+  }).min(5, { message: 'El titulo debe tener al menos 5 caracteres' }),
+
+  tecnologia: z.string({
+    error: (issue) => issue.input === undefined
+      ? 'El campo tecnologia es obligatorio'
+      : 'El campo tecnologia debe ser un texto'
+  }).min(3, { message: 'El campo tecnologia debe tener al menos 3 caracteres' }),
+
+  vistas: z.number({
+    error: (issue) => issue.input === undefined
+      ? 'El campo vistas es obligatorio'
+      : 'El campo vistas debe ser un número'
+  }).int({ message: 'El campo vistas debe ser entero' })
+    .nonnegative({ message: 'El campo vistas no puede ser negativo' }),
+
+  nivel: z.enum(['basico', 'intermedio', 'avanzado'], {
+    error: (issue) => issue.input === undefined
+      ? 'El nivel es obligatorio'
+      : 'El nivel debe ser: básico, intermedio, avanzado'
+  })
+})
+
+export const cursoBDPatchSchema = cursoBDSchema.partial()
+
+// Params (ej: /:id)
+export const idParamSchema = z.object({
+  id: z.coerce.number({
+    error: (issue) => issue.input === undefined
+      ? 'El ID es obligatorio'
+      : 'El ID debe ser un numero'
+  }) // convierte string → number automáticamente
+})
+
+=============== middlewares/validate.js =========================
+
+export const validateBody = (schema) => (req, res, next) => {
+  const result = schema.safeParse(req.body)
+
+  if (!result.success) {
+    return res.status(400).json({
+      error: result.error.issues.map(issue => issue.message)
+    })
+  }
+
+  req.body = result.data
+
+  next()
+}
+
+
+export const validateParams = (schema) => (req, res, next) => {
+  const result = schema.safeParse(req.params)
+
+  if (!result.success) {
+    return res.status(400).json({
+      error: result.error.issues.map(issue => issue.message)
+    })
+  }
+
+  req.params = result.data
+  next()
+}
+
+=============== models/index.js =========================
+
+const tipo = process.env.DB ?? 'local'
+
+const { CursosModel } = tipo === 'mysql'
+  ? await import('./mysql/cursos.model.js')
+  : await import('./local-file-system/cursos.model.js')
+
+console.log(tipo)
+
+export { CursosModel }
+
+=============== models/local-file-system/cursos.model.js =========================
+
+import fs from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const DATA_PATH = path.join(__dirname, '../../data/cursos.json')
+
+// Helpers privados de lectura/escritura
+const leerCursos = async () => {
+  const data = await fs.readFile(DATA_PATH, 'utf-8')
+  return JSON.parse(data)
+}
+
+const guardarCursos = async (cursos) => {
+  await fs.writeFile(DATA_PATH, JSON.stringify(cursos, null, 2), 'utf-8')
+}
+
+export class CursosModel {
+
+  // Obtener todos los cursos
+  static getAll = async () => {
+    return await leerCursos()
+    // return cursos
+  }
+
+  // Obtener todos los cursos de Programacion
+  static getAllProgramacion = async () => {
+    const cursos = await leerCursos()
+    return cursos.programacion
+    // return cursos.programacion
+  }
+
+  // Obtener todos los cursos de Matematicas
+  static getAllMatematicas = async () => {
+    const cursos = await leerCursos()
+    return cursos.matematicas
+    // return cursos.matematicas
+  }
+
+  // Obtener todos los cursos de Bases de datos
+  static getAllBD = async () => {
+    const cursos = await leerCursos()
+    return cursos.bases_de_datos
+    // return cursos.bases_de_datos
+  }
+
+  // Crear un curso de programación
+  static createProgramacion = async ({ input }) => {
+    const cursos = await leerCursos() // nueva linea
+    const nuevoCurso = {
+      id: cursos.programacion.at(-1)?.id + 1 || 1,
+      ...input,
+      timestamp: Date.now()
+    }
+
+    cursos.programacion.push(nuevoCurso)
+    await guardarCursos(cursos) // nueva linea
+    return nuevoCurso
+  }
+
+  // Crear un curso de matemáticas
+  static createMatematicas = async ({ input }) => {
+    const cursos = await leerCursos() // nueva linea
+    const nuevoCurso = {
+      id: cursos.matematicas.at(-1)?.id + 1 || 1,
+      ...input,
+      timestamp: Date.now()
+    }
+
+    cursos.matematicas.push(nuevoCurso)
+    await guardarCursos(cursos) // nueva linea
+    return nuevoCurso
+  }
+
+  // Crear un curso de bases de datos
+  static createBD = async ({ input }) => {
+    const cursos = await leerCursos() // nueva linea
+    const nuevoCurso = {
+      id: cursos.bases_de_datos.at(-1)?.id + 1 || 1,
+      ...input,
+      timestamp: Date.now()
+    }
+
+    cursos.bases_de_datos.push(nuevoCurso)
+    await guardarCursos(cursos) // nueva linea
+    return nuevoCurso
+  }
+
+  // Actualizar un curso de programacion
+  static updateProgramacion = async ({ id, input }) => {
+    const cursos = await leerCursos() // nueva linea
+    const index = cursos.programacion.findIndex(c => c.id === id)
+    if (index === -1) return false
+
+    cursos.programacion[index] = {
+      id,
+      ...input
+    }
+
+    await guardarCursos(cursos) // nueva linea
+
+    return cursos.programacion[index]
+  }
+
+  // Actualizar un curso de matemáticas
+  static updateMatematicas = async ({ id, input }) => {
+    const cursos = await leerCursos() // nueva linea
+    const index = cursos.matematicas.findIndex(c => c.id === id)
+    if (index === -1) return false
+
+    cursos.matematicas[index] = {
+      id,
+      ...input
+    }
+
+    await guardarCursos(cursos) // nueva linea
+
+    return cursos.matematicas[index]
+  }
+
+  // Actualizar un curso de bases de datos
+  static updateBD = async ({ id, input }) => {
+    const cursos = await leerCursos() // nueva linea
+    const index = cursos.bases_de_datos.findIndex(c => c.id === id)
+    if (index === -1) return false
+
+    cursos.bases_de_datos[index] = {
+      id,
+      ...input
+    }
+    await guardarCursos(cursos) // nueva linea
+    return cursos.bases_de_datos[index]
+  }
+
+  // Actualización parcial de un curso de programacion
+  static patchProgramacion = async ({ id, input }) => {
+    const cursos = await leerCursos() // nueva linea
+    const curso = cursos.programacion.find(c => c.id === id)
+    if (!curso) return false
+    Object.assign(curso, input)
+    await guardarCursos(cursos) // nueva linea
+    return curso
+  }
+
+  // Actualización parcial de un curso de matematicas
+  static patchMatematicas = async ({ id, input }) => {
+    const cursos = await leerCursos() // nueva linea
+    const curso = cursos.matematicas.find(c => c.id === id)
+    if (!curso) return false
+    Object.assign(curso, input)
+    await guardarCursos(cursos) // nueva linea
+    return curso
+  }
+
+  // Actualización parcial de un curso de bases de datos
+  static patchBD = async ({ id, input }) => {
+    const cursos = await leerCursos() // nueva linea
+    const curso = cursos.bases_de_datos.find(c => c.id === id)
+    if (!curso) return false
+    Object.assign(curso, input)
+    await guardarCursos(cursos) // nueva linea
+    return curso
+  }
+
+  // Borrar un curso de programacion
+  static deleteProgramacion = async ({ id }) => {
+    const cursos = await leerCursos() // nueva linea
+    const index = cursos.programacion.findIndex(c => c.id === id)
+    if (index === -1) return false
+    const eliminado = cursos.programacion.splice(index, 1)
+    await guardarCursos(cursos) // nueva linea
+    return eliminado[0]
+  }
+
+  // Borrar un curso de matemáticas
+  static deleteMatematicas = async ({ id }) => {
+    const cursos = await leerCursos() // nueva linea
+    const index = cursos.matematicas.findIndex(c => c.id === id)
+    if (index === -1) return false
+    const eliminado = cursos.matematicas.splice(index, 1)
+    await guardarCursos(cursos) // nueva linea
+    return eliminado[0]
+  }
+
+  // Borrar un curso de bases de datos
+  static deleteBD = async ({ id }) => {
+    const cursos = await leerCursos() // nueva linea
+    const index = cursos.bases_de_datos.findIndex(c => c.id === id)
+    if (index === -1) return false
+    const eliminado = cursos.bases_de_datos.splice(index, 1)
+    await guardarCursos(cursos) // nueva linea
+    return eliminado[0]
+  }
+}
+
+=============== models/mysql/db.js =========================
+
+import mysql from 'mysql2/promise'
+
+export const pool = await mysql.createPool({
+  host: 'localhost',
+  user: 'root',
+  password: '', // Sin password por el momento
+  database: 'cursosdb'
+})
+
+// Probar conexión al iniciar (descomentar el código de abajo)
+/*try {
+  const connection = await pool.getConnection()
+  console.log('✅ Conexión a MySQL exitosa')
+  connection.release() // 👈 importante: liberar la conexión de vuelta al pool
+} catch (error) {
+  console.error('❌ Error al conectar a MySQL:', error.message)
+  process.exit(1) // 👈 detiene el servidor si no hay conexión
+}*/
+
+=============== models/mysql/cursos.model.js =========================
+
+import { pool } from './db.js'
+
+export class CursosModel {
+
+  // Obtener todos los cursos
+  static getAll = async () => {
+    const [programacion] = await pool.execute('SELECT * FROM programacion')
+    const [matematicas] = await pool.execute('SELECT * FROM matematicas')
+    const [bases_de_datos] = await pool.execute('SELECT * FROM bases_de_datos')
+
+    return { programacion, matematicas, bases_de_datos }
+  }
+
+  // Obtener todos los cursos de Programacion
+  static getAllProgramacion = async () => {
+    const [rows] = await pool.execute('SELECT * FROM programacion')
+    return rows
+  }
+
+  // Obtener todos los cursos de Matematicas
+  static getAllMatematicas = async () => {
+    const [rows] = await pool.execute('SELECT * FROM matematicas')
+    return rows
+  }
+
+  // Obtener todos los cursos de Bases de datos
+  static getAllBD = async () => {
+    const [rows] = await pool.execute('SELECT * FROM bases_de_datos')
+    return rows
+  }
+
+  // Crear un curso de programación
+  static createProgramacion = async ({ input }) => {
+    const { titulo, lenguaje, vistas, nivel } = input
+
+    const [result] = await pool.execute(
+      `INSERT INTO programacion (titulo, lenguaje, vistas, nivel, timestamp)
+       VALUES (?, ?, ?, ?, ?)`,
+      [titulo, lenguaje, vistas, nivel, Date.now()]
+    )
+
+    const [rows] = await pool.execute(
+      'SELECT * FROM programacion WHERE id = ?',
+      [result.insertId]
+    )
+
+    return rows[0]
+  }
+
+  // Crear un curso de matemáticas
+  static createMatematicas = async ({ input }) => {
+    const { titulo, tema, vistas, nivel } = input
+
+    const [result] = await pool.execute(
+      `INSERT INTO matematicas (titulo, tema, vistas, nivel, timestamp)
+       VALUES (?, ?, ?, ?, ?)`,
+      [titulo, tema, vistas, nivel, Date.now()]
+    )
+
+    const [rows] = await pool.execute(
+      'SELECT * FROM matematicas WHERE id = ?',
+      [result.insertId]
+    )
+
+    return rows[0]
+  }
+
+  // Crear un curso de bases de datos
+  static createBD = async ({ input }) => {
+    const { titulo, tecnologia, vistas, nivel } = input
+
+    const [result] = await pool.execute(
+      `INSERT INTO bases_de_datos (titulo, tecnologia, vistas, nivel, timestamp)
+       VALUES (?, ?, ?, ?, ?)`,
+      [titulo, tecnologia, vistas, nivel, Date.now()]
+    )
+
+    const [rows] = await pool.execute(
+      'SELECT * FROM bases_de_datos WHERE id = ?',
+      [result.insertId]
+    )
+
+    return rows[0]
+  }
+
+  // Actualizar un curso de programacion
+  static updateProgramacion = async ({ id, input }) => {
+    const { titulo, lenguaje, vistas, nivel } = input
+    const [result] = await pool.execute(
+      `UPDATE programacion
+       SET titulo = ?, lenguaje = ?, vistas = ?, nivel = ?
+       WHERE id = ?`,
+      [titulo, lenguaje, vistas, nivel, id]
+    )
+    if (result.affectedRows === 0) return false
+    const [rows] = await pool.execute(
+      'SELECT * FROM programacion WHERE id = ?', [id]
+    )
+    return rows[0]
+  }
+
+  // Actualizar un curso de matemáticas
+  static updateMatematicas = async ({ id, input }) => {
+    const { titulo, tema, vistas, nivel } = input
+
+    const [result] = await pool.execute(
+      `UPDATE matematicas
+       SET titulo = ?, tema = ?, vistas = ?, nivel = ?
+       WHERE id = ?`,
+      [titulo, tema, vistas, nivel, id]
+    )
+
+    if (result.affectedRows === 0) return false
+
+    const [rows] = await pool.execute(
+      'SELECT * FROM matematicas WHERE id = ?', [id]
+    )
+
+    return rows[0]
+  }
+
+  // Actualizar un curso de bases de datos
+  static updateBD = async ({ id, input }) => {
+    const { titulo, tecnologia, vistas, nivel } = input
+
+    const [result] = await pool.execute(
+      `UPDATE bases_de_datos
+       SET titulo = ?, tecnologia = ?, vistas = ?, nivel = ?
+       WHERE id = ?`,
+      [titulo, tecnologia, vistas, nivel, id]
+    )
+
+    if (result.affectedRows === 0) return false
+
+    const [rows] = await pool.execute(
+      'SELECT * FROM bases_de_datos WHERE id = ?', [id]
+    )
+
+    return rows[0]
+  }
+
+  // Actualización parcial de un curso de programacion
+  static patchProgramacion = async ({ id, input }) => {
+    const campos = Object.keys(input)
+      .map(key => `${key} = ?`).join(', ')
+
+    const valores = [...Object.values(input), id]
+
+    const [result] = await pool.execute(
+      `UPDATE programacion SET ${campos} WHERE id = ?`,
+      valores
+    )
+
+    if (result.affectedRows === 0) return false
+
+    const [rows] = await pool.execute(
+      'SELECT * FROM programacion WHERE id = ?', [id]
+    )
+
+    return rows[0]
+  }
+
+  // Actualización parcial de un curso de matematicas
+  static patchMatematicas = async ({ id, input }) => {
+    const campos = Object.keys(input)
+      .map(key => `${key} = ?`).join(', ')
+
+    const valores = [...Object.values(input), id]
+
+    const [result] = await pool.execute(
+      `UPDATE matematicas SET ${campos} WHERE id = ?`,
+      valores
+    )
+
+    if (result.affectedRows === 0) return false
+
+    const [rows] = await pool.execute(
+      'SELECT * FROM matematicas WHERE id = ?', [id]
+    )
+
+    return rows[0]
+  }
+
+  // Actualización parcial de un curso de bases de datos
+  static patchBD = async ({ id, input }) => {
+    const campos = Object.keys(input).map(key => `${key} = ?`).join(', ')
+    const valores = [...Object.values(input), id]
+
+    const [result] = await pool.execute(
+      `UPDATE bases_de_datos SET ${campos} WHERE id = ?`,
+      valores
+    )
+
+    if (result.affectedRows === 0) return false
+
+    const [rows] = await pool.execute(
+      'SELECT * FROM bases_de_datos WHERE id = ?', [id]
+    )
+
+    return rows[0]
+  }
+
+  // Borrar un curso de programacion
+  static deleteProgramacion = async ({ id }) => {
+    const [rows] = await pool.execute(
+      'SELECT * FROM programacion WHERE id = ?', [id]
+    )
+
+    if (rows.length === 0) return false
+
+    await pool.execute('DELETE FROM programacion WHERE id = ?', [id])
+
+    return rows[0]
+  }
+
+  // Borrar un curso de matemáticas
+  static deleteMatematicas = async ({ id }) => {
+    const [rows] = await pool.execute(
+      'SELECT * FROM matematicas WHERE id = ?', [id]
+    )
+
+    if (rows.length === 0) return false
+
+    await pool.execute('DELETE FROM matematicas WHERE id = ?', [id])
+
+    return rows[0]
+  }
+
+  // Borrar un curso de bases de datos
+  static deleteBD = async ({ id }) => {
+    const [rows] = await pool.execute(
+      'SELECT * FROM bases_de_datos WHERE id = ?', [id]
+    )
+
+    if (rows.length === 0) return false
+
+    await pool.execute('DELETE FROM bases_de_datos WHERE id = ?', [id])
+
+    return rows[0]
+  }
+}
+
+=============== controllers/cursos.controller.js =========================
+
+//import { CursosModel } from '../models/local-file-system/cursos.model.js'
+//import { CursosModel } from '../models/mysql/cursos.model.js'
+import { CursosModel } from '../models/index.js'
+
+
+export class CursosController {
+
+  static getAll = async (req, res) => {
+    res.json(await CursosModel.getAll())
+  }
+
+  static getAllProgramacion = async (req, res) => {
+    res.json(await CursosModel.getAllProgramacion())
+  }
+
+  static getAllMatematicas = async (req, res) => {
+    res.json(await CursosModel.getAllMatematicas())
+  }
+
+  static getAllBD = async (req, res) => {
+    res.json(await CursosModel.getAllBD())
+  }
+
+  static createProgramacion = async (req, res) => {
+    const nuevoCurso = await CursosModel.createProgramacion({
+      input: req.body
+    })
+    res.status(201).json(nuevoCurso)
+  }
+
+  static createMatematicas = async (req, res) => {
+    const nuevoCurso = await CursosModel.createMatematicas({
+      input: req.body
+    })
+    res.status(201).json(nuevoCurso)
+  }
+
+  static createBD = async (req, res) => {
+    const nuevoCurso = await CursosModel.createBD({
+      input: req.body
+    })
+    res.status(201).json(nuevoCurso)
+  }
+
+  static updateProgramacion = async (req, res) => {
+    const { id } = req.params
+
+    const cursoActualizado = await CursosModel.updateProgramacion({
+      id,
+      input: req.body
+    })
+
+    if (!cursoActualizado) {
+      return res.status(404).json({
+        mensaje: 'Curso no encontrado'
+      })
+    }
+
+    res.json(cursoActualizado)
+  }
+
+  static updateMatematicas = async (req, res) => {
+    const { id } = req.params
+
+    const cursoActualizado = await CursosModel.updateMatematicas({
+      id,
+      input: req.body
+    })
+
+    if (!cursoActualizado) {
+      return res.status(404).json({
+        mensaje: 'Curso no encontrado'
+      })
+    }
+
+    res.json(cursoActualizado)
+  }
+
+  static updateBD = async (req, res) => {
+    const { id } = req.params
+
+    const cursoActualizado = await CursosModel.updateBD({
+      id,
+      input: req.body
+    })
+
+    if (!cursoActualizado) {
+      return res.status(404).json({
+        mensaje: 'Curso no encontrado'
+      })
+    }
+
+    res.json(cursoActualizado)
+  }
+
+  static patchProgramacion = async (req, res) => {
+    const { id } = req.params
+
+    const cursoActualizado = await CursosModel.patchProgramacion({
+      id,
+      input: req.body
+    })
+
+    if (!cursoActualizado) {
+      return res.status(404).json({
+        mensaje: 'Curso no encontrado'
+      })
+    }
+
+    res.json(cursoActualizado)
+  }
+
+  static patchMatematicas = async (req, res) => {
+    const { id } = req.params
+
+    const cursoActualizado = await CursosModel.patchMatematicas({
+      id,
+      input: req.body
+    })
+
+    if (!cursoActualizado) {
+      return res.status(404).json({
+        mensaje: 'Curso no encontrado'
+      })
+    }
+
+    res.json(cursoActualizado)
+  }
+
+  static patchBD = async (req, res) => {
+    const { id } = req.params
+
+    const cursoActualizado = await CursosModel.patchBD({
+      id,
+      input: req.body
+    })
+
+    if (!cursoActualizado) {
+      return res.status(404).json({
+        mensaje: 'Curso no encontrado'
+      })
+    }
+
+    res.json(cursoActualizado)
+  }
+
+  static deleteProgramacion = async (req, res) => {
+    const { id } = req.params
+    const eliminado = await CursosModel.deleteProgramacion({ id })
+
+    if (!eliminado) {
+      return res.status(404).json({
+        mensaje: 'Curso no encontrado'
+      })
+    }
+
+    res.json({
+      mensaje: 'Curso eliminado',
+      curso: eliminado
+    })
+  }
+
+  static deleteMatematicas = async (req, res) => {
+    const { id } = req.params
+    const eliminado = await CursosModel.deleteMatematicas({ id })
+
+    if (!eliminado) {
+      return res.status(404).json({
+        mensaje: 'Curso no encontrado'
+      })
+    }
+
+    res.json({
+      mensaje: 'Curso eliminado',
+      curso: eliminado
+    })
+  }
+
+  static deleteBD = async (req, res) => {
+    const { id } = req.params
+    const eliminado = await CursosModel.deleteBD({ id })
+
+    if (!eliminado) {
+      return res.status(404).json({
+        mensaje: 'Curso no encontrado'
+      })
+    }
+
+    res.json({
+      mensaje: 'Curso eliminado',
+      curso: eliminado
+    })
+  }
+}
+
+=============== controllers/cursos.views.controller.js =========================
+
+// import { CursosModel } from '../models/mysql/cursos.model.js'
+import { CursosModel } from '../models/index.js'
+
+export class CursosViewsController {
+
+  static index = async (req, res) => {
+    const todos = await CursosModel.getAll()
+    res.render('index', {
+      totalProgramacion: todos.programacion.length,
+      totalMatematicas: todos.matematicas.length,
+      totalBD: todos.bases_de_datos.length
+    })
+  }
+
+  static cursos = async (req, res) => {
+    const todos = await CursosModel.getAll()
+    res.render('cursos', {
+      programacion: todos.programacion,
+      matematicas: todos.matematicas,
+      bases_de_datos: todos.bases_de_datos
+    })
+  }
+
+  static programacion = async (req, res) => {
+    const cursos = await CursosModel.getAllProgramacion()
+    res.render('programacion', { cursos })
+  }
+
+  static matematicas = async (req, res) => {
+    const cursos = await CursosModel.getAllMatematicas()
+    res.render('matematicas', { cursos })
+  }
+
+  static basesDeDatos = async (req, res) => {
+    const cursos = await CursosModel.getAllBD()
+    res.render('bases_de_datos', { cursos })
+  }
+}
+
+=============== routes/cursos.views.routes.js =========================
+
+import { Router } from 'express'
+import { CursosViewsController } from '../controllers/cursos.views.controller.js'
+
+const router = Router()
+
+router.get('/', CursosViewsController.index)
+router.get('/cursos-view', CursosViewsController.cursos)
+router.get('/cursos-view/programacion', CursosViewsController.programacion)
+router.get('/cursos-view/matematicas', CursosViewsController.matematicas)
+router.get('/cursos-view/bases_de_datos', CursosViewsController.basesDeDatos)
+
+export default router
+
+=============== routes/cursos.routes.js =========================
+
+import { Router } from 'express'
+import { CursosController } from '../controllers/cursos.controller.js'
+import {
+  cursoMatematicasSchema,
+  cursoMatematicasPatchSchema,
+  cursoProgramacionSchema,
+  cursoProgramacionPatchSchema,
+  cursoBDSchema,
+  cursoBDPatchSchema,
+  idParamSchema
+} from '../schemas/cursos.schema.js'
+
+import {
+  validateBody,
+  validateParams
+} from '../middlewares/validate.js'
+
+const router = Router()
+
+// GET
+router.get('/', CursosController.getAll)
+router.get('/programacion', CursosController.getAllProgramacion)
+router.get('/matematicas', CursosController.getAllMatematicas)
+router.get('/bases_de_datos', CursosController.getAllBD)
+
+// POST
+router.post('/programacion',
+  validateBody(cursoProgramacionSchema),
+  CursosController.createProgramacion)
+
+router.post('/matematicas',
+  validateBody(cursoMatematicasSchema),
+  CursosController.createMatematicas)
+
+router.post('/bases_de_datos',
+  validateBody(cursoBDSchema),
+  CursosController.createBD)
+
+// PUT
+router.put(
+  '/programacion/:id',
+  validateParams(idParamSchema),
+  validateBody(cursoProgramacionSchema),
+  CursosController.updateProgramacion
+)
+
+router.put(
+  '/matematicas/:id',
+  validateParams(idParamSchema),
+  validateBody(cursoMatematicasSchema),
+  CursosController.updateMatematicas
+)
+
+router.put(
+  '/bases_de_datos/:id',
+  validateParams(idParamSchema),
+  validateBody(cursoBDSchema),
+  CursosController.updateBD
+)
+
+// PATCH
+router.patch(
+  '/programacion/:id',
+  validateParams(idParamSchema),
+  validateBody(cursoProgramacionPatchSchema),
+  CursosController.patchProgramacion
+)
+
+router.patch(
+  '/matematicas/:id',
+  validateParams(idParamSchema),
+  validateBody(cursoMatematicasPatchSchema),
+  CursosController.patchMatematicas
+)
+
+router.patch(
+  '/bases_de_datos/:id',
+  validateParams(idParamSchema),
+  validateBody(cursoBDPatchSchema),
+  CursosController.patchBD
+)
+
+// DELETE
+router.delete('/programacion/:id',
+  validateParams(idParamSchema),
+  CursosController.deleteProgramacion
+)
+
+router.delete('/matematicas/:id',
+  validateParams(idParamSchema),
+  CursosController.deleteMatematicas
+)
+
+router.delete('/bases_de_datos/:id',
+  validateParams(idParamSchema),
+  CursosController.deleteBD
+)
+
+export default router
+
+=============== views/partials/head.js =========================
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>
+  <%= title %> | CursosDB
+</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap');
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: #000000;
+    color: #e8e8e0;
+    min-height: 100vh;
+  }
+
+  /* NAV */
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.2rem 2.5rem;
+    border-bottom: 1px solid #2a2a2a;
+    background: #0f0f0f;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  nav .logo {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #c8f04a;
+    text-decoration: none;
+  }
+
+  nav ul {
+    list-style: none;
+    display: flex;
+    gap: 2rem;
+  }
+
+  nav ul a {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    color: #888;
+    text-decoration: none;
+    letter-spacing: 0.05em;
+    transition: color 0.2s;
+  }
+
+  nav ul a:hover,
+  nav ul a.active {
+    color: #c8f04a;
+  }
+
+  /* LAYOUT */
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 3rem 2rem;
+  }
+
+  /* PAGE HEADER */
+  .page-header {
+    margin-bottom: 2.5rem;
+  }
+
+  .page-header h1 {
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #e8e8e0;
+  }
+
+  .page-header h1 span {
+    color: #c8f04a;
+  }
+
+  .page-header p {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    color: #555;
+    margin-top: 0.6rem;
+    letter-spacing: 0.03em;
+  }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid #2a2a2a;
+    padding-bottom: 0;
+  }
+
+  .tab-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    padding: 0.6rem 1.2rem;
+    background: none;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    letter-spacing: 0.05em;
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  .tab-btn:hover {
+    color: #e8e8e0;
+  }
+
+  .tab-btn.active {
+    color: #c8f04a;
+    border-bottom-color: #c8f04a;
+  }
+
+  /* CARDS GRID */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.2rem;
+  }
+
+  .card {
+    background: #161616;
+    border: 1px solid #2a2a2a;
+    border-radius: 4px;
+    padding: 1.5rem;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+
+  .card:hover {
+    border-color: #c8f04a;
+    transform: translateY(-2px);
+  }
+
+  .card .card-tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    color: #c8f04a;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 0.8rem;
+  }
+
+  .card h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    line-height: 1.3;
+  }
+
+  .card .meta {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 2px;
+    letter-spacing: 0.05em;
+  }
+
+  .badge-nivel-basico {
+    background: #1a2e1a;
+    color: #6fcf6f;
+  }
+
+  .badge-nivel-intermedio {
+    background: #2e261a;
+    color: #f0b84a;
+  }
+
+  .badge-nivel-avanzado {
+    background: #2e1a1a;
+    color: #f07a4a;
+  }
+
+  .badge-views {
+    background: #1c1c1c;
+    color: #555;
+  }
+
+  /* EMPTY STATE */
+  .empty {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    color: #444;
+    padding: 3rem 0;
+    text-align: center;
+  }
+
+  /* TABLE */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid #222;
+    border-radius: 6px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    min-width: 700px;
+  }
+
+  thead {
+    background: #161616;
+  }
+
+  thead tr {
+    border-bottom: 2px solid #2a2a2a;
+  }
+
+  thead th {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    color: #c8f04a;
+    text-align: left;
+    padding: 1rem 1.4rem;
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid #1a1a1a;
+    transition: background 0.15s;
+  }
+
+  tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  tbody tr:hover {
+    background: #181818;
+  }
+
+  td {
+    padding: 1rem 1.4rem;
+    vertical-align: middle;
+    color: #ccc;
+  }
+
+  td:first-child {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: #444;
+    width: 48px;
+  }
+
+  /* ACTION BUTTONS */
+  .btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    padding: 0.45rem 1rem;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+    display: inline-block;
+    transition: background 0.15s, color 0.15s, transform 0.1s;
+    white-space: nowrap;
+  }
+
+  .btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .btn:active {
+    transform: translateY(0);
+  }
+
+  .btn-primary {
+    background: #c8f04a;
+    color: #0f0f0f;
+    border-color: #c8f04a;
+    font-weight: 700;
+  }
+
+  .btn-primary:hover {
+    background: #d6f56e;
+    border-color: #d6f56e;
+  }
+
+  .btn-edit {
+    background: #2e2612;
+    color: #f0b84a;
+    border-color: #4a3a18;
+  }
+
+  .btn-edit:hover {
+    background: #3a3018;
+    border-color: #f0b84a;
+  }
+
+  .btn-delete {
+    background: #2e1a12;
+    color: #f07a4a;
+    border-color: #4a2a18;
+  }
+
+  .btn-delete:hover {
+    background: #3a2018;
+    border-color: #f07a4a;
+  }
+
+  .btn-cancel {
+    background: transparent;
+    color: #666;
+    border-color: #333;
+  }
+
+  .btn-cancel:hover {
+    color: #999;
+    border-color: #555;
+  }
+
+  .btn-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  /* SECTION HEADER */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  .section-header h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  /* FORM */
+  .form-box {
+    background: #111;
+    border: 1px solid #222;
+    border-radius: 6px;
+    padding: 2rem 2.5rem;
+    max-width: 600px;
+  }
+
+  .form-box h2 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 1.8rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px solid #222;
+    color: #e8e8e0;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.5rem;
+  }
+
+  .form-group {
+    margin-bottom: 1.2rem;
+  }
+
+  .form-group.full {
+    grid-column: 1 / -1;
+  }
+
+  .form-group label {
+    display: block;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: #555;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.45rem;
+    text-transform: uppercase;
+  }
+
+  .form-group input,
+  .form-group select {
+    width: 100%;
+    background: #0d0d0d;
+    border: 1px solid #2a2a2a;
+    border-radius: 3px;
+    color: #e8e8e0;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+    padding: 0.65rem 0.9rem;
+    outline: none;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .form-group input:focus,
+  .form-group select:focus {
+    border-color: #c8f04a;
+    background: #111;
+  }
+
+  .form-group input::placeholder {
+    color: #333;
+  }
+
+  .form-group select option {
+    background: #111;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.8rem;
+    margin-top: 1.8rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid #1a1a1a;
+  }
+
+  /* ALERT / FLASH */
+  .alert {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    padding: 0.8rem 1.2rem;
+    border-radius: 2px;
+    margin-bottom: 1.5rem;
+    letter-spacing: 0.03em;
+  }
+
+  .alert-success {
+    background: #1a2e1a;
+    color: #6fcf6f;
+    border-left: 3px solid #6fcf6f;
+  }
+
+  .alert-error {
+    background: #2e1a1a;
+    color: #f07a4a;
+    border-left: 3px solid #f07a4a;
+  }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid #1e1e1e;
+    padding: 1.5rem 2.5rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: #333;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+</style>
+
+=============== views/partials/navbar.js =========================
+
+<nav>
+  <a href="/" class="logo">CURSOSDB</a>
+  <ul>
+    <li><a href="/" class="<%= currentPath === '/' ? 'active' : '' %>">INICIO</a></li>
+    <li><a href="/cursos-view" class="<%= currentPath === '/cursos-view' ? 'active' : '' %>">TODOS</a></li>
+    <li><a href="/cursos-view/programacion"
+        class="<%= currentPath === '/cursos-view/programacion' ? 'active' : '' %>">PROGRAMACIÓN</a></li>
+    <li><a href="/cursos-view/matematicas"
+        class="<%= currentPath === '/cursos-view/matematicas' ? 'active' : '' %>">MATEMÁTICAS</a></li>
+    <li><a href="/cursos-view/bases_de_datos"
+        class="<%= currentPath === '/cursos-view/bases_de_datos' ? 'active' : '' %>">BASES DE DATOS</a></li>
+  </ul>
+</nav>
+
+=============== views/index.js =========================
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <%- include('partials/head', { title: 'Inicio' }) %>
+    <style>
+      .hero {
+        padding: 6rem 0 4rem;
+        border-bottom: 1px solid #1e1e1e;
+        margin-bottom: 3rem;
+      }
+
+      .hero .label {
+        font-family: 'Space Mono', monospace;
+        font-size: 0.72rem;
+        color: #c8f04a;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        margin-bottom: 1.2rem;
+      }
+
+      .hero h1 {
+        font-size: clamp(2.8rem, 6vw, 5rem);
+        font-weight: 800;
+        line-height: 1.05;
+        max-width: 700px;
+      }
+
+      .hero h1 em {
+        font-style: normal;
+        color: #c8f04a;
+      }
+
+      .hero p {
+        font-family: 'Space Mono', monospace;
+        font-size: 0.82rem;
+        color: #555;
+        margin-top: 1.5rem;
+        max-width: 480px;
+        line-height: 1.7;
+      }
+
+      .hero-cta {
+        display: inline-block;
+        margin-top: 2.5rem;
+        padding: 0.8rem 2rem;
+        background: #c8f04a;
+        color: #0f0f0f;
+        font-family: 'Space Mono', monospace;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-decoration: none;
+        border-radius: 2px;
+        transition: opacity 0.2s;
+      }
+
+      .hero-cta:hover {
+        opacity: 0.85;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1px;
+        background: #2a2a2a;
+        border: 1px solid #2a2a2a;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+
+      .stat {
+        background: #161616;
+        padding: 1.8rem 2rem;
+      }
+
+      .stat .num {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #e8e8e0;
+        line-height: 1;
+      }
+
+      .stat .desc {
+        font-family: 'Space Mono', monospace;
+        font-size: 0.7rem;
+        color: #555;
+        margin-top: 0.4rem;
+        letter-spacing: 0.05em;
+      }
+    </style>
+</head>
+
+<body>
+
+  <%- include('partials/navbar', { currentPath: '/' }) %>
+
+    <main>
+      <section class="hero">
+        <p class="label">Curso práctico · Desarrollo Web 2651</p>
+        <h1>Aprende.<br><em>Construye.</em><br>Domina.</h1>
+        <p>Explora cursos de programación, matemáticas y bases de datos. Contenido estructurado para todos los niveles.
+        </p>
+        <a href="/cursos-view" class="hero-cta">VER CURSOS →</a>
+      </section>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="num">
+            <%= totalProgramacion %>
+          </div>
+          <div class="desc">CURSOS DE PROGRAMACIÓN</div>
+        </div>
+        <div class="stat">
+          <div class="num">
+            <%= totalMatematicas %>
+          </div>
+          <div class="desc">CURSOS DE MATEMÁTICAS</div>
+        </div>
+        <div class="stat">
+          <div class="num">
+            <%= totalBD %>
+          </div>
+          <div class="desc">CURSOS DE BASES DE DATOS</div>
+        </div>
+      </div>
+    </main>
+
+    <footer>© 2651 CURSOSDB — TODOS LOS DERECHOS RESERVADOS</footer>
+
+</body>
+
+</html>
+
+=============== views/cursos.js =========================
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <%- include('partials/head', { title: 'Cursos' }) %>
+</head>
+
+<body>
+
+  <%- include('partials/navbar', { currentPath: '/cursos' }) %>
+
+    <main>
+      <div class="page-header">
+        <h1>Todos los <span>Cursos</span></h1>
+        <p>PROGRAMACIÓN · MATEMÁTICAS · BASES DE DATOS</p>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" onclick="showTab('programacion', this)">PROGRAMACIÓN</button>
+        <button class="tab-btn" onclick="showTab('matematicas', this)">MATEMÁTICAS</button>
+        <button class="tab-btn" onclick="showTab('bases_de_datos', this)">BASES DE DATOS</button>
+      </div>
+
+      <!-- Programación -->
+      <div id="tab-programacion" class="tab-panel">
+        <% if (programacion && programacion.length> 0) { %>
+          <div class="cards-grid">
+            <% programacion.forEach(curso=> { %>
+              <div class="card">
+                <div class="card-tag">
+                  <%= curso.lenguaje %>
+                </div>
+                <h3>
+                  <%= curso.titulo %>
+                </h3>
+                <div class="meta">
+                  <span class="badge badge-nivel-<%= curso.nivel %>">
+                    <%= curso.nivel %>
+                  </span>
+                  <span class="badge badge-views">
+                    <%= curso.vistas.toLocaleString() %> vistas
+                  </span>
+                </div>
+              </div>
+              <% }) %>
+          </div>
+          <% } else { %>
+            <p class="empty">// sin cursos disponibles</p>
+            <% } %>
+      </div>
+
+      <!-- Matemáticas -->
+      <div id="tab-matematicas" class="tab-panel" style="display:none">
+        <% if (matematicas && matematicas.length> 0) { %>
+          <div class="cards-grid">
+            <% matematicas.forEach(curso=> { %>
+              <div class="card">
+                <div class="card-tag">
+                  <%= curso.tema %>
+                </div>
+                <h3>
+                  <%= curso.titulo %>
+                </h3>
+                <div class="meta">
+                  <span class="badge badge-nivel-<%= curso.nivel %>">
+                    <%= curso.nivel %>
+                  </span>
+                  <span class="badge badge-views">
+                    <%= curso.vistas.toLocaleString() %> vistas
+                  </span>
+                </div>
+              </div>
+              <% }) %>
+          </div>
+          <% } else { %>
+            <p class="empty">// sin cursos disponibles</p>
+            <% } %>
+      </div>
+
+      <!-- Bases de datos -->
+      <div id="tab-bases_de_datos" class="tab-panel" style="display:none">
+        <% if (bases_de_datos && bases_de_datos.length> 0) { %>
+          <div class="cards-grid">
+            <% bases_de_datos.forEach(curso=> { %>
+              <div class="card">
+                <div class="card-tag">
+                  <%= curso.tecnologia %>
+                </div>
+                <h3>
+                  <%= curso.titulo %>
+                </h3>
+                <div class="meta">
+                  <span class="badge badge-nivel-<%= curso.nivel %>">
+                    <%= curso.nivel %>
+                  </span>
+                  <span class="badge badge-views">
+                    <%= curso.vistas.toLocaleString() %> vistas
+                  </span>
+                </div>
+              </div>
+              <% }) %>
+          </div>
+          <% } else { %>
+            <p class="empty">// sin cursos disponibles</p>
+            <% } %>
+      </div>
+    </main>
+
+    <footer>© 2651 CURSOSDB — TODOS LOS DERECHOS RESERVADOS</footer>
+
+    <script>
+      function showTab(name, btn) {
+        document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none')
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+        document.getElementById('tab-' + name).style.display = 'block'
+        btn.classList.add('active')
+      }
+    </script>
+
+</body>
+
+</html>
+
+=============== views/programacion.js =========================
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <%- include('partials/head', { title: 'Programación' }) %>
+</head>
+
+<body>
+
+  <%- include('partials/navbar', { currentPath: '/cursos/programacion' }) %>
+
+    <main>
+      <div class="page-header">
+        <h1>Cursos de <span>Programación</span></h1>
+        <p>GESTIÓN COMPLETA — POST · PUT · DELETE</p>
+      </div>
+
+      <div id="alert-area"></div>
+
+      <!-- TABLA -->
+      <div class="section-header">
+        <h2>Listado</h2>
+      </div>
+
+      <div class="table-wrap">
+        <table id="tabla-cursos">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>TÍTULO</th>
+              <th>LENGUAJE</th>
+              <th>VISTAS</th>
+              <th>NIVEL</th>
+              <th>ACCIONES</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% cursos.forEach(curso=> { %>
+              <tr id="fila-<%= curso.id %>">
+                <td>
+                  <%= curso.id %>
+                </td>
+                <td>
+                  <%= curso.titulo %>
+                </td>
+                <td>
+                  <%= curso.lenguaje %>
+                </td>
+                <td>
+                  <%= curso.vistas.toLocaleString() %>
+                </td>
+                <td>
+                  <span class="badge badge-nivel-<%= curso.nivel %>">
+                    <%= curso.nivel %>
+                  </span>
+                </td>
+                <td>
+                  <div class="btn-group">
+                    <button class="btn btn-edit" data-id="<%= curso.id %>" data-titulo="<%= curso.titulo %>"
+                      data-lenguaje="<%= curso.lenguaje %>" data-vistas="<%= curso.vistas %>"
+                      data-nivel="<%= curso.nivel %>">
+                      EDITAR
+                    </button>
+                    <button class="btn btn-delete" data-id="<%= curso.id %>">
+                      ELIMINAR
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <hr style="border-color:#1e1e1e; margin: 2.5rem 0">
+
+      <!-- FORMULARIO CREAR -->
+      <div class="form-box" id="form-crear">
+        <h2>Nuevo curso</h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="titulo">TÍTULO</label>
+            <input type="text" id="titulo" placeholder="Aprende JavaScript">
+          </div>
+          <div class="form-group">
+            <label for="lenguaje">LENGUAJE</label>
+            <input type="text" id="lenguaje" placeholder="javascript">
+          </div>
+          <div class="form-group">
+            <label for="vistas">VISTAS</label>
+            <input type="number" id="vistas" placeholder="0" min="0">
+          </div>
+          <div class="form-group">
+            <label for="nivel">NIVEL</label>
+            <select id="nivel">
+              <option value="">— selecciona —</option>
+              <option value="basico">básico</option>
+              <option value="intermedio">intermedio</option>
+              <option value="avanzado">avanzado</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="btn-crear">CREAR CURSO</button>
+        </div>
+      </div>
+
+      <!-- FORMULARIO EDITAR (oculto) -->
+      <div class="form-box" id="form-editar" style="display:none; margin-top:1.5rem">
+        <h2>Editar curso <span id="edit-id-label" style="color:#c8f04a"></span></h2>
+        <input type="hidden" id="edit-id">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="edit-titulo">TÍTULO</label>
+            <input type="text" id="edit-titulo">
+          </div>
+          <div class="form-group">
+            <label for="edit-lenguaje">LENGUAJE</label>
+            <input type="text" id="edit-lenguaje">
+          </div>
+          <div class="form-group">
+            <label for="edit-vistas">VISTAS</label>
+            <input type="number" id="edit-vistas" min="0">
+          </div>
+          <div class="form-group">
+            <label for="edit-nivel">NIVEL</label>
+            <select id="edit-nivel">
+              <option value="basico">básico</option>
+              <option value="intermedio">intermedio</option>
+              <option value="avanzado">avanzado</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="btn-guardar">GUARDAR CAMBIOS</button>
+          <button class="btn btn-cancel" id="btn-cancelar">CANCELAR</button>
+        </div>
+      </div>
+    </main>
+
+    <footer>© 2651 CURSOSDB — TODOS LOS DERECHOS RESERVADOS</footer>
+
+    <script>
+      const BASE = '/cursos/programacion'
+
+      // ── Utilidades ──────────────────────────────────────────────
+
+      function mostrarAlerta(msg, tipo = 'success') {
+        const area = document.getElementById('alert-area')
+        area.innerHTML = `<div class="alert alert-${tipo}">${msg}</div>`
+        setTimeout(() => area.innerHTML = '', 3500)
+      }
+
+      function crearFilaHTML(c) {
+        const tr = document.createElement('tr')
+        tr.id = `fila-${c.id}`
+        tr.innerHTML = `
+        <td>${c.id}</td>
+        <td>${c.titulo}</td>
+        <td>${c.lenguaje}</td>
+        <td>${c.vistas.toLocaleString()}</td>
+        <td><span class="badge badge-nivel-${c.nivel}">${c.nivel}</span></td>
+        <td>
+          <div class="btn-group">
+            <button class="btn btn-edit"
+              data-id="${c.id}"
+              data-titulo="${c.titulo}"
+              data-lenguaje="${c.lenguaje}"
+              data-vistas="${c.vistas}"
+              data-nivel="${c.nivel}">EDITAR</button>
+            <button class="btn btn-delete" data-id="${c.id}">ELIMINAR</button>
+          </div>
+        </td>`
+        return tr
+      }
+
+      function limpiarFormCrear() {
+        ['titulo', 'lenguaje', 'vistas', 'nivel'].forEach(id => {
+          document.getElementById(id).value = ''
+        })
+      }
+
+      // ── POST ─────────────────────────────────────────────────────
+
+      async function crearCurso() {
+        const body = {
+          titulo: document.getElementById('titulo').value.trim(),
+          lenguaje: document.getElementById('lenguaje').value.trim(),
+          vistas: Number(document.getElementById('vistas').value),
+          nivel: document.getElementById('nivel').value
+        }
+
+        const res = await fetch(BASE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+
+        if (!res.ok) {
+          const err = await res.json()
+          return mostrarAlerta('Error: ' + (err.error?.join(', ') ?? res.statusText), 'error')
+        }
+
+        const nuevo = await res.json()
+        document.querySelector('#tabla-cursos tbody').appendChild(crearFilaHTML(nuevo))
+        mostrarAlerta(`Curso "${nuevo.titulo}" creado correctamente.`)
+        limpiarFormCrear()
+      }
+
+      // ── PUT ──────────────────────────────────────────────────────
+
+      function abrirEditar(btn) {
+        const d = btn.dataset
+        document.getElementById('edit-id').value = d.id
+        document.getElementById('edit-id-label').textContent = `#${d.id}`
+        document.getElementById('edit-titulo').value = d.titulo
+        document.getElementById('edit-lenguaje').value = d.lenguaje
+        document.getElementById('edit-vistas').value = d.vistas
+        document.getElementById('edit-nivel').value = d.nivel
+        document.getElementById('form-editar').style.display = 'block'
+        document.getElementById('form-editar').scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+
+      function cerrarEditar() {
+        document.getElementById('form-editar').style.display = 'none'
+      }
+
+      async function actualizarCurso() {
+        const id = document.getElementById('edit-id').value
+        const body = {
+          titulo: document.getElementById('edit-titulo').value.trim(),
+          lenguaje: document.getElementById('edit-lenguaje').value.trim(),
+          vistas: Number(document.getElementById('edit-vistas').value),
+          nivel: document.getElementById('edit-nivel').value
+        }
+
+        const res = await fetch(`${BASE}/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+
+        if (!res.ok) {
+          const err = await res.json()
+          return mostrarAlerta('Error: ' + (err.error?.join(', ') ?? res.statusText), 'error')
+        }
+
+        const c = await res.json()
+        const fila = document.getElementById(`fila-${id}`)
+        fila.children[1].textContent = c.titulo
+        fila.children[2].textContent = c.lenguaje
+        fila.children[3].textContent = c.vistas.toLocaleString()
+        fila.children[4].innerHTML = `<span class="badge badge-nivel-${c.nivel}">${c.nivel}</span>`
+
+        // Sincronizar data-* del botón editar con los nuevos valores
+        const btnEdit = fila.querySelector('.btn-edit')
+        Object.assign(btnEdit.dataset, { titulo: c.titulo, lenguaje: c.lenguaje, vistas: c.vistas, nivel: c.nivel })
+
+        cerrarEditar()
+        mostrarAlerta(`Curso #${id} actualizado correctamente.`)
+      }
+
+      // ── DELETE ───────────────────────────────────────────────────
+
+      async function eliminarCurso(btn) {
+        const id = btn.dataset.id
+        if (!confirm(`¿Eliminar el curso #${id}?`)) return
+
+        const res = await fetch(`${BASE}/${id}`, { method: 'DELETE' })
+
+        if (!res.ok) {
+          return mostrarAlerta('No se pudo eliminar el curso.', 'error')
+        }
+
+        document.getElementById(`fila-${id}`)?.remove()
+        mostrarAlerta(`Curso #${id} eliminado.`)
+      }
+
+      // ── Event listeners ──────────────────────────────────────────
+
+      document.getElementById('btn-crear')
+        .addEventListener('click', crearCurso)
+
+      document.getElementById('btn-guardar')
+        .addEventListener('click', actualizarCurso)
+
+      document.getElementById('btn-cancelar')
+        .addEventListener('click', cerrarEditar)
+
+      // Delegación en la tabla para editar y eliminar
+      document.getElementById('tabla-cursos')
+        .addEventListener('click', (e) => {
+          const btnEdit = e.target.closest('.btn-edit')
+          const btnDelete = e.target.closest('.btn-delete')
+          if (btnEdit) abrirEditar(btnEdit)
+          if (btnDelete) eliminarCurso(btnDelete)
+        })
+    </script>
+
+</body>
+
+</html>
+
+=============== views/matematicas.js =========================
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <%- include('partials/head', { title: 'Matemáticas' }) %>
+</head>
+
+<body>
+
+  <%- include('partials/navbar', { currentPath: '/cursos/matematicas' }) %>
+
+    <main>
+      <div class="page-header">
+        <h1>Cursos de <span>Matemáticas</span></h1>
+        <p>GESTIÓN COMPLETA — POST · PUT · DELETE</p>
+      </div>
+
+      <div id="alert-area"></div>
+
+      <!-- TABLA -->
+      <div class="section-header">
+        <h2>Listado</h2>
+      </div>
+
+      <div class="table-wrap">
+        <table id="tabla-cursos">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>TÍTULO</th>
+              <th>TEMA</th>
+              <th>VISTAS</th>
+              <th>NIVEL</th>
+              <th>ACCIONES</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% cursos.forEach(curso=> { %>
+              <tr id="fila-<%= curso.id %>">
+                <td>
+                  <%= curso.id %>
+                </td>
+                <td>
+                  <%= curso.titulo %>
+                </td>
+                <td>
+                  <%= curso.tema %>
+                </td>
+                <td>
+                  <%= curso.vistas.toLocaleString() %>
+                </td>
+                <td>
+                  <span class="badge badge-nivel-<%= curso.nivel %>">
+                    <%= curso.nivel %>
+                  </span>
+                </td>
+                <td>
+                  <div class="btn-group">
+                    <button class="btn btn-edit" data-id="<%= curso.id %>" data-titulo="<%= curso.titulo %>"
+                      data-tema="<%= curso.tema %>" data-vistas="<%= curso.vistas %>" data-nivel="<%= curso.nivel %>">
+                      EDITAR
+                    </button>
+                    <button class="btn btn-delete" data-id="<%= curso.id %>">
+                      ELIMINAR
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <hr style="border-color:#1e1e1e; margin: 2.5rem 0">
+
+      <!-- FORMULARIO CREAR -->
+      <div class="form-box" id="form-crear">
+        <h2>Nuevo curso</h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="titulo">TÍTULO</label>
+            <input type="text" id="titulo" placeholder="Aprende Cálculo">
+          </div>
+          <div class="form-group">
+            <label for="tema">TEMA</label>
+            <input type="text" id="tema" placeholder="cálculo">
+          </div>
+          <div class="form-group">
+            <label for="vistas">VISTAS</label>
+            <input type="number" id="vistas" placeholder="0" min="0">
+          </div>
+          <div class="form-group">
+            <label for="nivel">NIVEL</label>
+            <select id="nivel">
+              <option value="">— selecciona —</option>
+              <option value="basico">básico</option>
+              <option value="intermedio">intermedio</option>
+              <option value="avanzado">avanzado</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="btn-crear">CREAR CURSO</button>
+        </div>
+      </div>
+
+      <!-- FORMULARIO EDITAR (oculto) -->
+      <div class="form-box" id="form-editar" style="display:none; margin-top:1.5rem">
+        <h2>Editar curso <span id="edit-id-label" style="color:#c8f04a"></span></h2>
+        <input type="hidden" id="edit-id">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="edit-titulo">TÍTULO</label>
+            <input type="text" id="edit-titulo">
+          </div>
+          <div class="form-group">
+            <label for="edit-tema">TEMA</label>
+            <input type="text" id="edit-tema">
+          </div>
+          <div class="form-group">
+            <label for="edit-vistas">VISTAS</label>
+            <input type="number" id="edit-vistas" min="0">
+          </div>
+          <div class="form-group">
+            <label for="edit-nivel">NIVEL</label>
+            <select id="edit-nivel">
+              <option value="basico">básico</option>
+              <option value="intermedio">intermedio</option>
+              <option value="avanzado">avanzado</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="btn-guardar">GUARDAR CAMBIOS</button>
+          <button class="btn btn-cancel" id="btn-cancelar">CANCELAR</button>
+        </div>
+      </div>
+    </main>
+
+    <footer>© 2651 CURSOSDB — TODOS LOS DERECHOS RESERVADOS</footer>
+
+    <script>
+      const BASE = '/cursos/matematicas'
+
+      // ── Utilidades ──────────────────────────────────────────────
+
+      function mostrarAlerta(msg, tipo = 'success') {
+        const area = document.getElementById('alert-area')
+        area.innerHTML = `<div class="alert alert-${tipo}">${msg}</div>`
+        setTimeout(() => area.innerHTML = '', 3500)
+      }
+
+      function crearFilaHTML(c) {
+        const tr = document.createElement('tr')
+        tr.id = `fila-${c.id}`
+        tr.innerHTML = `
+        <td>${c.id}</td>
+        <td>${c.titulo}</td>
+        <td>${c.tema}</td>
+        <td>${c.vistas.toLocaleString()}</td>
+        <td><span class="badge badge-nivel-${c.nivel}">${c.nivel}</span></td>
+        <td>
+          <div class="btn-group">
+            <button class="btn btn-edit"
+              data-id="${c.id}"
+              data-titulo="${c.titulo}"
+              data-tema="${c.tema}"
+              data-vistas="${c.vistas}"
+              data-nivel="${c.nivel}">EDITAR</button>
+            <button class="btn btn-delete" data-id="${c.id}">ELIMINAR</button>
+          </div>
+        </td>`
+        return tr
+      }
+
+      function limpiarFormCrear() {
+        ['titulo', 'tema', 'vistas', 'nivel'].forEach(id => {
+          document.getElementById(id).value = ''
+        })
+      }
+
+      // ── POST ─────────────────────────────────────────────────────
+
+      async function crearCurso() {
+        const body = {
+          titulo: document.getElementById('titulo').value.trim(),
+          tema: document.getElementById('tema').value.trim(),
+          vistas: Number(document.getElementById('vistas').value),
+          nivel: document.getElementById('nivel').value
+        }
+
+        const res = await fetch(BASE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+
+        if (!res.ok) {
+          const err = await res.json()
+          return mostrarAlerta('Error: ' + (err.error?.join(', ') ?? res.statusText), 'error')
+        }
+
+        const nuevo = await res.json()
+        document.querySelector('#tabla-cursos tbody').appendChild(crearFilaHTML(nuevo))
+        mostrarAlerta(`Curso "${nuevo.titulo}" creado correctamente.`)
+        limpiarFormCrear()
+      }
+
+      // ── PUT ──────────────────────────────────────────────────────
+
+      function abrirEditar(btn) {
+        const d = btn.dataset
+        document.getElementById('edit-id').value = d.id
+        document.getElementById('edit-id-label').textContent = `#${d.id}`
+        document.getElementById('edit-titulo').value = d.titulo
+        document.getElementById('edit-tema').value = d.tema
+        document.getElementById('edit-vistas').value = d.vistas
+        document.getElementById('edit-nivel').value = d.nivel
+        document.getElementById('form-editar').style.display = 'block'
+        document.getElementById('form-editar').scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+
+      function cerrarEditar() {
+        document.getElementById('form-editar').style.display = 'none'
+      }
+
+      async function actualizarCurso() {
+        const id = document.getElementById('edit-id').value
+        const body = {
+          titulo: document.getElementById('edit-titulo').value.trim(),
+          tema: document.getElementById('edit-tema').value.trim(),
+          vistas: Number(document.getElementById('edit-vistas').value),
+          nivel: document.getElementById('edit-nivel').value
+        }
+
+        const res = await fetch(`${BASE}/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+
+        if (!res.ok) {
+          const err = await res.json()
+          return mostrarAlerta('Error: ' + (err.error?.join(', ') ?? res.statusText), 'error')
+        }
+
+        const c = await res.json()
+        const fila = document.getElementById(`fila-${id}`)
+        fila.children[1].textContent = c.titulo
+        fila.children[2].textContent = c.tema
+        fila.children[3].textContent = c.vistas.toLocaleString()
+        fila.children[4].innerHTML = `<span class="badge badge-nivel-${c.nivel}">${c.nivel}</span>`
+
+        // Sincronizar data-* del botón editar con los nuevos valores
+        const btnEdit = fila.querySelector('.btn-edit')
+        Object.assign(btnEdit.dataset, { titulo: c.titulo, tema: c.tema, vistas: c.vistas, nivel: c.nivel })
+
+        cerrarEditar()
+        mostrarAlerta(`Curso #${id} actualizado correctamente.`)
+      }
+
+      // ── DELETE ───────────────────────────────────────────────────
+
+      async function eliminarCurso(btn) {
+        const id = btn.dataset.id
+        if (!confirm(`¿Eliminar el curso #${id}?`)) return
+
+        const res = await fetch(`${BASE}/${id}`, { method: 'DELETE' })
+
+        if (!res.ok) {
+          return mostrarAlerta('No se pudo eliminar el curso.', 'error')
+        }
+
+        document.getElementById(`fila-${id}`)?.remove()
+        mostrarAlerta(`Curso #${id} eliminado.`)
+      }
+
+      // ── Event listeners ──────────────────────────────────────────
+
+      document.getElementById('btn-crear')
+        .addEventListener('click', crearCurso)
+
+      document.getElementById('btn-guardar')
+        .addEventListener('click', actualizarCurso)
+
+      document.getElementById('btn-cancelar')
+        .addEventListener('click', cerrarEditar)
+
+      // Delegación en la tabla para editar y eliminar
+      document.getElementById('tabla-cursos')
+        .addEventListener('click', (e) => {
+          const btnEdit = e.target.closest('.btn-edit')
+          const btnDelete = e.target.closest('.btn-delete')
+          if (btnEdit) abrirEditar(btnEdit)
+          if (btnDelete) eliminarCurso(btnDelete)
+        })
+    </script>
+
+</body>
+
+</html>
+
+=============== views/bases_de_datos.js =========================
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <%- include('partials/head', { title: 'Bases de Datos' }) %>
+</head>
+
+<body>
+
+  <%- include('partials/navbar', { currentPath: '/cursos/bases_de_datos' }) %>
+
+    <main>
+      <div class="page-header">
+        <h1>Cursos de <span>Bases de Datos</span></h1>
+        <p>GESTIÓN COMPLETA — POST · PUT · DELETE</p>
+      </div>
+
+      <div id="alert-area"></div>
+
+      <!-- TABLA -->
+      <div class="section-header">
+        <h2>Listado</h2>
+      </div>
+
+      <div class="table-wrap">
+        <table id="tabla-cursos">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>TÍTULO</th>
+              <th>TECNOLOGÍA</th>
+              <th>VISTAS</th>
+              <th>NIVEL</th>
+              <th>ACCIONES</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% cursos.forEach(curso=> { %>
+              <tr id="fila-<%= curso.id %>">
+                <td>
+                  <%= curso.id %>
+                </td>
+                <td>
+                  <%= curso.titulo %>
+                </td>
+                <td>
+                  <%= curso.tecnologia %>
+                </td>
+                <td>
+                  <%= curso.vistas.toLocaleString() %>
+                </td>
+                <td>
+                  <span class="badge badge-nivel-<%= curso.nivel %>">
+                    <%= curso.nivel %>
+                  </span>
+                </td>
+                <td>
+                  <div class="btn-group">
+                    <button class="btn btn-edit" data-id="<%= curso.id %>" data-titulo="<%= curso.titulo %>"
+                      data-tecnologia="<%= curso.tecnologia %>" data-vistas="<%= curso.vistas %>"
+                      data-nivel="<%= curso.nivel %>">
+                      EDITAR
+                    </button>
+                    <button class="btn btn-delete" data-id="<%= curso.id %>">
+                      ELIMINAR
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <hr style="border-color:#1e1e1e; margin: 2.5rem 0">
+
+      <!-- FORMULARIO CREAR -->
+      <div class="form-box" id="form-crear">
+        <h2>Nuevo curso</h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="titulo">TÍTULO</label>
+            <input type="text" id="titulo" placeholder="Introducción a SQL">
+          </div>
+          <div class="form-group">
+            <label for="tecnologia">TECNOLOGÍA</label>
+            <input type="text" id="tecnologia" placeholder="SQL">
+          </div>
+          <div class="form-group">
+            <label for="vistas">VISTAS</label>
+            <input type="number" id="vistas" placeholder="0" min="0">
+          </div>
+          <div class="form-group">
+            <label for="nivel">NIVEL</label>
+            <select id="nivel">
+              <option value="">— selecciona —</option>
+              <option value="basico">básico</option>
+              <option value="intermedio">intermedio</option>
+              <option value="avanzado">avanzado</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="btn-crear">CREAR CURSO</button>
+        </div>
+      </div>
+
+      <!-- FORMULARIO EDITAR (oculto) -->
+      <div class="form-box" id="form-editar" style="display:none; margin-top:1.5rem">
+        <h2>Editar curso <span id="edit-id-label" style="color:#c8f04a"></span></h2>
+        <input type="hidden" id="edit-id">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="edit-titulo">TÍTULO</label>
+            <input type="text" id="edit-titulo">
+          </div>
+          <div class="form-group">
+            <label for="edit-tecnologia">TECNOLOGÍA</label>
+            <input type="text" id="edit-tecnologia">
+          </div>
+          <div class="form-group">
+            <label for="edit-vistas">VISTAS</label>
+            <input type="number" id="edit-vistas" min="0">
+          </div>
+          <div class="form-group">
+            <label for="edit-nivel">NIVEL</label>
+            <select id="edit-nivel">
+              <option value="basico">básico</option>
+              <option value="intermedio">intermedio</option>
+              <option value="avanzado">avanzado</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="btn-guardar">GUARDAR CAMBIOS</button>
+          <button class="btn btn-cancel" id="btn-cancelar">CANCELAR</button>
+        </div>
+      </div>
+    </main>
+
+    <footer>© 2651 CURSOSDB — TODOS LOS DERECHOS RESERVADOS</footer>
+
+    <script>
+      const BASE = '/cursos/bases_de_datos'
+
+      // ── Utilidades ──────────────────────────────────────────────
+
+      function mostrarAlerta(msg, tipo = 'success') {
+        const area = document.getElementById('alert-area')
+        area.innerHTML = `<div class="alert alert-${tipo}">${msg}</div>`
+        setTimeout(() => area.innerHTML = '', 3500)
+      }
+
+      function crearFilaHTML(c) {
+        const tr = document.createElement('tr')
+        tr.id = `fila-${c.id}`
+        tr.innerHTML = `
+        <td>${c.id}</td>
+        <td>${c.titulo}</td>
+        <td>${c.tecnologia}</td>
+        <td>${c.vistas.toLocaleString()}</td>
+        <td><span class="badge badge-nivel-${c.nivel}">${c.nivel}</span></td>
+        <td>
+          <div class="btn-group">
+            <button class="btn btn-edit"
+              data-id="${c.id}"
+              data-titulo="${c.titulo}"
+              data-tecnologia="${c.tecnologia}"
+              data-vistas="${c.vistas}"
+              data-nivel="${c.nivel}">EDITAR</button>
+            <button class="btn btn-delete" data-id="${c.id}">ELIMINAR</button>
+          </div>
+        </td>`
+        return tr
+      }
+
+      function limpiarFormCrear() {
+        ['titulo', 'tecnologia', 'vistas', 'nivel'].forEach(id => {
+          document.getElementById(id).value = ''
+        })
+      }
+
+      // ── POST ─────────────────────────────────────────────────────
+
+      async function crearCurso() {
+        const body = {
+          titulo: document.getElementById('titulo').value.trim(),
+          tecnologia: document.getElementById('tecnologia').value.trim(),
+          vistas: Number(document.getElementById('vistas').value),
+          nivel: document.getElementById('nivel').value
+        }
+
+        const res = await fetch(BASE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+
+        if (!res.ok) {
+          const err = await res.json()
+          return mostrarAlerta('Error: ' + (err.error?.join(', ') ?? res.statusText), 'error')
+        }
+
+        const nuevo = await res.json()
+        document.querySelector('#tabla-cursos tbody').appendChild(crearFilaHTML(nuevo))
+        mostrarAlerta(`Curso "${nuevo.titulo}" creado correctamente.`)
+        limpiarFormCrear()
+      }
+
+      // ── PUT ──────────────────────────────────────────────────────
+
+      function abrirEditar(btn) {
+        const d = btn.dataset
+        document.getElementById('edit-id').value = d.id
+        document.getElementById('edit-id-label').textContent = `#${d.id}`
+        document.getElementById('edit-titulo').value = d.titulo
+        document.getElementById('edit-tecnologia').value = d.tecnologia
+        document.getElementById('edit-vistas').value = d.vistas
+        document.getElementById('edit-nivel').value = d.nivel
+        document.getElementById('form-editar').style.display = 'block'
+        document.getElementById('form-editar').scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+
+      function cerrarEditar() {
+        document.getElementById('form-editar').style.display = 'none'
+      }
+
+      async function actualizarCurso() {
+        const id = document.getElementById('edit-id').value
+        const body = {
+          titulo: document.getElementById('edit-titulo').value.trim(),
+          tecnologia: document.getElementById('edit-tecnologia').value.trim(),
+          vistas: Number(document.getElementById('edit-vistas').value),
+          nivel: document.getElementById('edit-nivel').value
+        }
+
+        const res = await fetch(`${BASE}/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+
+        if (!res.ok) {
+          const err = await res.json()
+          return mostrarAlerta('Error: ' + (err.error?.join(', ') ?? res.statusText), 'error')
+        }
+
+        const c = await res.json()
+        const fila = document.getElementById(`fila-${id}`)
+        fila.children[1].textContent = c.titulo
+        fila.children[2].textContent = c.tecnologia
+        fila.children[3].textContent = c.vistas.toLocaleString()
+        fila.children[4].innerHTML = `<span class="badge badge-nivel-${c.nivel}">${c.nivel}</span>`
+
+        // Sincronizar data-* del botón editar con los nuevos valores
+        const btnEdit = fila.querySelector('.btn-edit')
+        Object.assign(btnEdit.dataset, { titulo: c.titulo, tecnologia: c.tecnologia, vistas: c.vistas, nivel: c.nivel })
+
+        cerrarEditar()
+        mostrarAlerta(`Curso #${id} actualizado correctamente.`)
+      }
+
+      // ── DELETE ───────────────────────────────────────────────────
+
+      async function eliminarCurso(btn) {
+        const id = btn.dataset.id
+        if (!confirm(`¿Eliminar el curso #${id}?`)) return
+
+        const res = await fetch(`${BASE}/${id}`, { method: 'DELETE' })
+
+        if (!res.ok) {
+          return mostrarAlerta('No se pudo eliminar el curso.', 'error')
+        }
+
+        document.getElementById(`fila-${id}`)?.remove()
+        mostrarAlerta(`Curso #${id} eliminado.`)
+      }
+
+      // ── Event listeners ──────────────────────────────────────────
+
+      document.getElementById('btn-crear')
+        .addEventListener('click', crearCurso)
+
+      document.getElementById('btn-guardar')
+        .addEventListener('click', actualizarCurso)
+
+      document.getElementById('btn-cancelar')
+        .addEventListener('click', cerrarEditar)
+
+      // Delegación en la tabla para editar y eliminar
+      document.getElementById('tabla-cursos')
+        .addEventListener('click', (e) => {
+          const btnEdit = e.target.closest('.btn-edit')
+          const btnDelete = e.target.closest('.btn-delete')
+          if (btnEdit) abrirEditar(btnEdit)
+          if (btnDelete) eliminarCurso(btnDelete)
+        })
+    </script>
+
+</body>
+
+</html>
+
+
+=============== views/cursos_db.sql =========================
+
+-- borrar base de datos si existe
+DROP DATABASE IF EXISTS cursosdb;
+
+-- creacion de la base de datos
+CREATE DATABASE cursosdb;
+USE cursosdb;
+
+CREATE TABLE programacion (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  titulo VARCHAR(255) NOT NULL,
+  lenguaje VARCHAR(100) NOT NULL,
+  vistas INT UNSIGNED DEFAULT 0,
+  nivel ENUM('basico', 'intermedio', 'avanzado') NOT NULL,
+  timestamp BIGINT
+);
+
+INSERT INTO programacion (titulo, lenguaje, vistas, nivel, timestamp) VALUES ('Aprende Python', 'python', 15000, 'basico', NOW()),
+('Python intermedio', 'python', 13553, 'intermedio', NOW()),
+('Aprende JavaScript', 'javascript', 102223, 'basico', NOW());
+
+CREATE TABLE matematicas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  titulo VARCHAR(255) NOT NULL,
+  tema VARCHAR(100) NOT NULL,
+  vistas INT UNSIGNED DEFAULT 0,
+  nivel ENUM('basico', 'intermedio', 'avanzado') NOT NULL,
+  timestamp BIGINT
+);
+
+INSERT INTO matematicas (titulo, tema, vistas, nivel, timestamp) VALUES ('Aprende Cálculo', 'cálculo', 12427, 'basico', NOW()),
+('Aprende Álgebra', 'álgebra', 15722, 'intermedio', NOW());
+
+CREATE TABLE bases_de_datos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  titulo VARCHAR(255) NOT NULL,
+  tecnologia VARCHAR(100) NOT NULL,
+  vistas INT UNSIGNED DEFAULT 0,
+  nivel ENUM('basico', 'intermedio', 'avanzado') NOT NULL,
+  timestamp BIGINT
+);
+
+INSERT INTO bases_de_datos (titulo, tecnologia, vistas, nivel, timestamp)
+VALUES ('Introducción a SQL', 'SQL', 18200, 'basico', NOW()),
+('Modelado de Bases de Datos', 'modelado', 9800, 'intermedio', NOW());
+
+-- Para probar que se insertaron correctamente los valores
+-- SELECT * FROM programacion;
+-- SELECT * FROM matematicas;
+-- SELECT * FROM bases_de_datos;

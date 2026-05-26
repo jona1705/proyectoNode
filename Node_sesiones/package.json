@@ -1,5 +1,5 @@
 {
-  "name": "node04",
+  "name": "node01",
   "version": "1.0.0",
   "description": "Proyecto Web de la FES Acatlán",
   "keywords": [
@@ -13,18 +13,21 @@
   "license": "ISC",
   "author": "Jonathan Córdoba",
   "type": "module",
-  "main": "9-bd.js",
+  "main": "10-autentificacion.js",
   "scripts": {
-    "start": "node 9-bd.js",
-    "dev": "nodemon 9-bd.js"
+    "start": "node --watch 10-autentificacion.js",
+    "dev": "nodemon 10-autentificacion.js"
   },
   "devDependencies": {
     "nodemon": "3.1.14"
   },
   "dependencies": {
+    "bcrypt": "6.0.0",
     "dotenv": "17.4.2",
     "ejs": "5.0.2",
     "express": "5.2.1",
+    "express-mysql-session": "3.0.3",
+    "express-session": "1.19.0",
     "mysql2": "3.22.3",
     "zod": "4.4.3"
   }
